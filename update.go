@@ -5,9 +5,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // imports
@@ -135,7 +137,80 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func applyTableStyles(m *Model, th Theme) {
 	for _, tbl := range []*table.Model{&m.ProcTable, &m,&m.PortTable, &m.ConnTable} {
-		
+		st := table.DefaultStyles()
+		st.Header = st.Header.
+			BorderStyle(lipgloss.RoundedBorder()). 
+			BorderForeground(th.Subtle). 
+			BorderBottom(true). 
+			Bold(true)
+		st.Selected = st.Selected. 
+			Foreground(th.Base). 
+			Background(th.Primary)
+		tbl.SetStyles(st)
 	}
-    	
+}
+
+func createModel(th Theme) *Model {
+	sp := spinner.New()
+	sp.Spinner = spinner.MiniDot
+	sp.Style = lipgloss.NewStyle().Foreground(th.Accept).Bold(true)
+
+	cp := progress.New(progress.WithSolidFill(string(th.Primary)), progress.WithoutPercentage())
+	mp := progress.New(progress.WithSolidFill("#43BF6D"), progress.WithoutPercentage())
+	dp := progress.New(progress.WithSolidFill("#F25D94"), progress.WithoutPercentage())
+
+	procCols := []table.Column{
+		{Title: "PID", Width: 8},
+		{Title: "Name", Width: 24},
+		{Title: "CPU%", Width: 8},
+		{Title: "MEM%", Width: 8},
+		{Title: "Status", Width: 10},
+	}
+	portCols := []table.Column{
+		{Title: "Port", Width: 10},
+		{Title: "PID", Width: 10},
+		{Title: "Process", Width: 30},
+	}
+	connCols := []table.Column{
+		{Title: "Local", Width: 20},
+		{Title: "Remote", Width: 20},
+		{Title: "State", Width: 12},
+		{Title: "Process", Width: 20},
+	    {Title: "Type", Width: 6},
+	}
+
+	pt := table.New(table.WithColumns(procCols), table.WithFocused(true), table.WithHeight(12))
+	pot := table.New(table.WithColumns(portCols), table.WithFocused(true), table.WithHeight(10))
+	ct := table.New(table.WithColumns(connCols), table.WithFocused(true), table.WithHeight(12))
+
+	m := &Model{
+		TabNames:    []string{"Dashboard", "Processes", "Ports", "Connections"},
+		Sprinner:    sp,
+		CPUProgress: cp,
+		MemProgress: mp,
+		DiskProgress: dp,
+		ProcTable:   pt,
+		PortTable:   pot,
+		ConnTable:   ct,
+	}
+	applyTableStyles(m. th)
+    return m
+}
+
+func (m *Model) collectSystemStats() {
+	now := time.Now().UnixNano()
+
+	if cpuVal := measureCPU(); true {
+		m.CPUUsage = cpuVal
+		m.CPUWarn = cpuVal > 0.8
+	}
+	if memPct, memTotal, memUsed, memAvail, swapTotal, swapUsed := measureMemory(); true {
+		m.MemUsage = memPct
+		m.MemTotal = memTotal
+		m.MemUsed = memUsed
+		m.MemAvail = memAvail 
+		m.SwapTotal = swapTotal 
+		m.SwapUsed = swapUsed 
+		m.MemWarn = memPct > 0.9
+	}
 }
